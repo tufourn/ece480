@@ -9,10 +9,25 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+// serial
 const char *port = "/dev/ttyACM0";
 constexpr speed_t baud = B115200;
+
+// number of nozzles we're using
 constexpr int nozzleCount = 12;
+
+// pixel threshold, higher = 0, lower = 1
 constexpr uint8_t threshold = 128;
+
+// after dispenseCmd, next bytePerDispense bytes intepreted as nozzle bitmasks
+constexpr char dispenseCmd = 'D';
+constexpr int bytePerDispense = (nozzleCount + 7) / 8;
+
+// go to the beginning of current line
+constexpr char gotoBeginLineCmd = 'R';
+
+// go up to the next line
+constexpr char gotoNextLineCmd = 'N';
 
 /*
  * read a byte from serial
@@ -83,10 +98,10 @@ int openPort(const char *port) {
 }
 
 /*
- * parse an image into a 2D vector of 0 and 1 based on threshold value
- * returns empty vector if fail
+ * parse image to return a command buffer of chars to be sent to arduino
+ * return empty vector if fail
  */
-std::vector<std::vector<uint8_t>> parseImage(const char *imagePath) {
+std::vector<unsigned char> parseImage(const char *imagePath) {
   // default stb_image's first pixel is top left, we want to start bottom left
   stbi_set_flip_vertically_on_load(true);
 
@@ -116,25 +131,60 @@ std::vector<std::vector<uint8_t>> parseImage(const char *imagePath) {
     }
   }
 
+  // free stb image buffer
+  stbi_image_free(image);
+
   // write the dot matrix to a text file for testing
-  std::ofstream outFile("dot_matrix.txt");
-  if (!outFile.is_open()) {
+  std::ofstream dotMatrixFile("dot_matrix.txt");
+  if (!dotMatrixFile.is_open()) {
     std::cerr << "failed to open output file." << std::endl;
     stbi_image_free(image);
     return {};
   }
   for (size_t row = 0; row < dotMatrix.size(); row++) {
     for (size_t col = 0; col < dotMatrix[row].size(); col++) {
-      outFile << static_cast<int>(dotMatrix[row][col]);
+      dotMatrixFile << static_cast<int>(dotMatrix[row][col]);
     }
-    outFile << "\n";
+    dotMatrixFile << "\n";
   }
-  outFile.close();
+  dotMatrixFile.close();
 
-  // free stb image buffer
-  stbi_image_free(image);
+  assert(paddedHeight % nozzleCount == 0);
+  int lineCount = paddedHeight / nozzleCount;
 
-  return dotMatrix;
+  /*
+   * command buffer size:
+   * (1 byte for dispenseCmd + bytePerDispense bytes) * width * lineCount +
+   * (1 byte for gotoBeginLineCmd + 1 byte for gotoNextLineCmd) * lineCount
+   *
+   * for nozzle bitmasks, LSB is nozzle closer to origin
+   */
+  std::vector<unsigned char> cmd;
+  cmd.reserve(lineCount * width * (1 + bytePerDispense) + lineCount * 2);
+
+  for (size_t line = 0; line < lineCount; line++) {
+    for (size_t col = 0; col < width; col++) {
+      cmd.emplace_back(dispenseCmd);
+      for (size_t byteIndex = 0; byteIndex < bytePerDispense; byteIndex++) {
+        unsigned char bitmask = 0;
+        for (size_t bitIndex = 0; bitIndex < 8; bitIndex++) {
+          size_t nozzle = byteIndex * 8 + bitIndex;
+          if (nozzle < nozzleCount &&
+              dotMatrix[line * nozzleCount + nozzle][col]) {
+            bitmask |= 1 << bitIndex;
+          }
+        }
+        cmd.emplace_back(bitmask);
+      }
+    }
+    cmd.emplace_back(gotoBeginLineCmd);
+    cmd.emplace_back(gotoNextLineCmd);
+  }
+
+  assert(cmd.size() ==
+         lineCount * width * (1 + bytePerDispense) + lineCount * 2);
+
+  return cmd;
 }
 
 int main(int argc, char **argv) {
@@ -145,8 +195,8 @@ int main(int argc, char **argv) {
 
   const char *imagePath = argv[1];
 
-  std::vector<std::vector<uint8_t>> dotMatrix = parseImage(imagePath);
-  if (dotMatrix.empty()) {
+  std::vector<unsigned char> cmdBuffer = parseImage(imagePath);
+  if (cmdBuffer.empty()) {
     std::cerr << "failed to parse image\n";
     return -1;
   }
@@ -166,10 +216,12 @@ int main(int argc, char **argv) {
 
   std::cout << "\n\nconnection established\n\n";
 
-  for (char c = 'A'; c <= 'Z'; c++) {
-    writeChar(fd, c);
-    std::cout << "sent: " << c << std::endl;
+  for (const auto cmd : cmdBuffer) {
+    writeChar(fd, cmd);
+    std::cout << "sent: " << cmd << std::endl;
   }
+
+  std::cout << "\ncompleted\n";
 
   close(fd);
 }
