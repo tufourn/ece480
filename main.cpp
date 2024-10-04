@@ -121,8 +121,8 @@ std::vector<unsigned char> parseImage(const char *imagePath) {
   // generate dot matrix based on threshold, higher is 0, lower is 1
   std::vector<std::vector<uint8_t>> dotMatrix(paddedHeight,
                                               std::vector<uint8_t>(width));
-  for (size_t row = 0; row < height; row++) {
-    for (size_t col = 0; col < width; col++) {
+  for (int row = 0; row < height; row++) {
+    for (int col = 0; col < width; col++) {
       if (image[row * width + col] > threshold) {
         dotMatrix[row][col] = 0;
       } else {
@@ -159,11 +159,12 @@ std::vector<unsigned char> parseImage(const char *imagePath) {
    *
    * for nozzle bitmasks, LSB is nozzle closer to origin
    */
+  size_t cmdSize = lineCount * width * (1 + bytePerDispense) + lineCount * 2;
   std::vector<unsigned char> cmd;
-  cmd.reserve(lineCount * width * (1 + bytePerDispense) + lineCount * 2);
+  cmd.reserve(cmdSize);
 
-  for (size_t line = 0; line < lineCount; line++) {
-    for (size_t col = 0; col < width; col++) {
+  for (int line = 0; line < lineCount; line++) {
+    for (int col = 0; col < width; col++) {
       cmd.emplace_back(dispenseCmd);
       for (size_t byteIndex = 0; byteIndex < bytePerDispense; byteIndex++) {
         unsigned char bitmask = 0;
@@ -181,8 +182,7 @@ std::vector<unsigned char> parseImage(const char *imagePath) {
     cmd.emplace_back(gotoNextLineCmd);
   }
 
-  assert(cmd.size() ==
-         lineCount * width * (1 + bytePerDispense) + lineCount * 2);
+  assert(cmd.size() == cmdSize);
 
   return cmd;
 }
