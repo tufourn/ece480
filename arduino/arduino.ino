@@ -1,3 +1,8 @@
+#define dirPin_x 2
+#define stepPin_x 3
+#define dirPin_y 4
+#define stepPin_y 5
+
 enum CommandMode {
   INSTRUCTION,
   MASK1,
@@ -9,17 +14,37 @@ CommandMode cmdMode = INSTRUCTION;
 // move stepper x 1 step (dot width) to the right
 // keep track of steps moved so we can return to the begin of line
 void step() {
-  // TODO
+  // 21 microsteps per drop
+  digitalWrite(dirPin_x, LOW);
+  for(int i = 0; i < 21; i++){
+    digitalWrite(stepPin_x, HIGH);
+    delayMicroseconds(1000);
+    digitalWrite(stepPin_x, LOW);
+    delayMicroseconds(1000);
+  }
 }
 
 // goto the begin of current line
-void gotoBeginLine() {
-  // TODO
+void gotoBeginLine(int steps) {
+  digitalWrite(dirPin_x, LOW);
+  for(int i = 0; i < 21*steps; i++){
+    digitalWrite(stepPin_x, HIGH);
+    delayMicroseconds(1000);
+    digitalWrite(stepPin_x, LOW);
+    delayMicroseconds(1000);
+  }
 }
 
 // move stepper y 1 line above (dot height) * nozzleCount
 void gotoNextLine() {
-  // TODO
+  nozzleCount = 1;
+  digitalWrite(dirPin_y, LOW);
+  for(int i = 0; i < 21*nozzleCount; i++){
+    digitalWrite(stepPin_y, HIGH);
+    delayMicroseconds(1000);
+    digitalWrite(stepPin_y, LOW);
+    delayMicroseconds(1000);
+  }
 }
 
 // dispense ink based on bitmask
@@ -37,6 +62,11 @@ void dispense(unsigned char mask) {
 }
 
 void setup() {
+  pinMode(stepPin_x, OUTPUT);
+  pinMode(dirPin_x, OUTPUT);
+  pinMode(stepPin_y, OUTPUT);
+  pinMode(dirPin_y, OUTPUT);
+  
   Serial.begin(115200);
   while (Serial.available() <= 0) {
     Serial.print('X');
