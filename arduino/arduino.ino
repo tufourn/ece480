@@ -26,7 +26,7 @@ void step() {
 
 // goto the begin of current line
 void gotoBeginLine(int steps) {
-  digitalWrite(dirPin_x, LOW);
+  digitalWrite(dirPin_x, HIGH);
   for(int i = 0; i < 21*steps; i++){
     digitalWrite(stepPin_x, HIGH);
     delayMicroseconds(1000);
@@ -37,7 +37,7 @@ void gotoBeginLine(int steps) {
 
 // move stepper y 1 line above (dot height) * nozzleCount
 void gotoNextLine() {
-  nozzleCount = 1;
+  int nozzleCount = 1;
   digitalWrite(dirPin_y, LOW);
   for(int i = 0; i < 21*nozzleCount; i++){
     digitalWrite(stepPin_y, HIGH);
@@ -67,33 +67,42 @@ void setup() {
   pinMode(stepPin_y, OUTPUT);
   pinMode(dirPin_y, OUTPUT);
   
-  Serial.begin(115200);
-  while (Serial.available() <= 0) {
-    Serial.print('X');
-    delay(100);
-  }
+  // Serial.begin(115200);
+  // while (Serial.available() <= 0) {
+  //   Serial.print('X');
+  //   delay(100);
+  // }
 }
 
 void loop() {
-  if (Serial.available() > 0) {
-    unsigned char cmd = Serial.read();
-    Serial.print('R'); // let host know byte has been received
-    if (cmdMode == INSTRUCTION) {
-      switch (cmd) {
-        case 'D':
-          cmdMode = MASK1;
-          break;
-        case 'R':
-          gotoBeginLine();
-          break;
-        case 'N':
-          gotoNextLine();
-          break;
-        default:
-          break;
-      }
-    } else {
-      dispense(cmd);
-    }
+
+  for(int i = 0; i < 50; i++) {
+    step();
   }
+  gotoBeginLine(50);
+  for(int i = 0; i < 10; i++) {
+    gotoNextLine();
+  }
+  
+  // if (Serial.available() > 0) {
+  //   unsigned char cmd = Serial.read();
+  //   Serial.print('R'); // let host know byte has been received
+  //   if (cmdMode == INSTRUCTION) {
+  //     switch (cmd) {
+  //       case 'D':
+  //         cmdMode = MASK1;
+  //         break;
+  //       case 'R':
+  //         gotoBeginLine();
+  //         break;
+  //       case 'N':
+  //         gotoNextLine();
+  //         break;
+  //       default:
+  //         break;
+  //     }
+  //   } else {
+  //     dispense(cmd);
+  //   }
+  // }
 }
