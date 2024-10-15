@@ -112,6 +112,7 @@ void dispense(unsigned char mask) {
       // pulse nozzle at index `i` if its bit is set HIGH in mask
       if (mask & (1 << i)) {
         pulse(unoPins[nozzles[i]]);
+        delayMicroseconds(PULSE_DELAY_DIFF_NOZZLE);
       }
     }
     cmdMode = MASK2;
@@ -121,8 +122,10 @@ void dispense(unsigned char mask) {
       if (mask & (1 << i)) {
         // pulse nozzle at index `i + 8` for remaining 4 nozzles
         pulse(unoPins[nozzles[i + 8]]);
+        delayMicroseconds(PULSE_DELAY_DIFF_NOZZLE);
       }
     }
+    delayMicroseconds(PULSE_DELAY_SAME_NOZZLE);
 
     cmdMode = INSTRUCTION;
     step();
