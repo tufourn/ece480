@@ -29,35 +29,36 @@ StepperMotor motorY = {MOTOR_Y_DIR_PIN, MOTOR_Y_STEP_PIN, MOTOR_Y_LIMIT_PIN};
 
 int stepsTaken = 0;
 
-// move stepper 1 step (dot width) to the right
-// keep track of steps moved so we can return to the begin of line
-void step(const StepperMotor& motor = motorX, int dir = 0) {
-  digitalWrite(motor.dirPin, dir);
-  digitalWrite(motor.stepPin, HIGH);
-  delayMicroseconds(1000);
-  digitalWrite(motor.stepPin, LOW);
-  delayMicroseconds(1000);
+// move stepper
+void step(const StepperMotor& motor, int stepCount) {
+  if(stepCount >= 0) {
+    digitalWrite(motor.dirPin, 0);
+  } else {
+    digitalWrite(motor.dirPin, 1);
+  }
+  for(int i = 0; i < stepCount; i++) {
+    digitalWrite(motor.stepPin, HIGH);
+    delayMicroseconds(1000);
+    digitalWrite(motor.stepPin, LOW);
+    delayMicroseconds(1000);
+  }
 }
 
-void stepPerDrop(const StepperMotor& motor = motorX, int dir = 0) {
-  for(int i = 0; i < STEPS_PER_DROP; i++){
-    step(motor, dir);
-  }
+// move one dot width to right
+// track step count for return
+void stepDrop() {
+  step(motorX, STEPS_PER_DROP);
+  stepsTaken += STEPS_PER_DROP;
 }
 
 // goto the begin of current line
 void gotoBeginLine() {
-  for(int i = 0; i < stepsTaken; i++){
-    stepPerDrop(motorX, 1);  // does not allow for speed control
-  }
-  stepsTaken = 0;
+  step(motorX, stepsTaken*-1);
 }
 
 // move stepper y 1 line above (dot height) * nozzleCount
 void gotoNextLine() {
-  for(int i = 0; i < NOZZLE_COUNT; i++){
-    stepPerDrop(motorY);
-  }
+  step(motorY, STEPS_PER_DROP*NOZZLE_COUNT);
 }
 
 // dispense ink based on bitmask
@@ -70,8 +71,7 @@ void dispense(unsigned char mask) {
   if (cmdMode == MASK2) {
     /* TODO: dispense second set of nozzles */
     cmdMode = INSTRUCTION;
-    stepPerDrop();
-    stepsTaken += 1;
+    stepDrop();
   }
 }
 
