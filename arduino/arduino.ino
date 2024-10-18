@@ -54,7 +54,7 @@ const PinInfo unoPins[] = {
 // Initial command mode
 CommandMode cmdMode = INSTRUCTION;
 
-// Nozzle Number       1   2   3   4   5  6  7  8  9  10 11 12 
+// Nozzle Number       1  2  3  4  5  6  7  8  9   10  11  12 
 const int nozzles[] = {14, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2};
 
 // Steppers
@@ -162,7 +162,7 @@ void dispense(unsigned char mask) {
     }
     cmdMode = MASK2;
   }
-  if (cmdMode == MASK2) {
+  else if (cmdMode == MASK2) {
     for (int i = 0; i < 4; i++) {
       if (mask & (1 << i)) {
         // pulse nozzle at index `i + 8` for remaining 4 nozzles
