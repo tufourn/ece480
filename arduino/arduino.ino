@@ -3,13 +3,22 @@
 #define PULSE_DELAY_DIFF_NOZZLE     1  // us
 #define PULSE_DELAY_SAME_NOZZLE   800  // us
 
+#define DROPS_PER_INCH 96
+#define INCHES_PER_REV 1.5748 // 40 mm per revolution
+#define STEPS_PER_REV 3200    // 200 full steps * 16 microsteps
+#define STEP_SPEED 300
+
 enum CommandMode {
   INSTRUCTION,
   MASK1,
   MASK2,
 };
 
-CommandMode cmdMode = INSTRUCTION;
+struct StepperMotor {
+  const int dirPin;
+  const int stepPin;
+  const int limitPin;
+};
 
 struct PinInfo {
   volatile uint8_t* ddr;
@@ -17,9 +26,6 @@ struct PinInfo {
   volatile uint8_t* port;
   uint8_t bit;
 };
-
-// Nozzle Number       1  2  3  4  5  6  7  8  9   10  11  12 
-const int nozzles[] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14};
 
 const PinInfo unoPins[] = {
 //                            GPIO    PIN
@@ -44,6 +50,18 @@ const PinInfo unoPins[] = {
   {&DDRC, &PINC, &PORTC, 4}, // C4     18   
   {&DDRC, &PINC, &PORTC, 5}, // C5     19   
 };
+
+// Initial command mode
+CommandMode cmdMode = INSTRUCTION;
+
+// Nozzle Number       1   2   3   4   5  6  7  8  9  10 11 12 
+const int nozzles[] = {14, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2};
+
+// Steppers
+const StepperMotor motorX = {15, 16, 13};
+const StepperMotor motorY = {17, 18, 19};
+const int stepsPerDrop = (1.0 / DROPS_PER_INCH) * (1.0 / INCHES_PER_REV) * STEPS_PER_REV;
+int posX = 0;
 
 /**
  * Write to a pin using direct port manipulation for low latency
@@ -88,24 +106,51 @@ void pulseTestSuccessive() {
   delayMicroseconds(PULSE_DELAY_SAME_NOZZLE);
 }
 
-// move stepper x 1 step (dot width) to the right
-// keep track of steps moved so we can return to the begin of line
-void step() {
-  // TODO
+/** 
+ * Move stepper motor by specified amount
+ * @param motor The motor to drive
+ * @param stepCount Number of 1/16 microsteps to take
+*/
+void step(const StepperMotor& motor, int stepCount) {
+  if(stepCount >= 0) {
+    digitalWriteFast(unoPins[motor.dirPin], LOW);
+  } else {
+    digitalWriteFast(unoPins[motor.dirPin], HIGH);
+  }
+  for(int i = 0; i < abs(stepCount); i++) {
+    digitalWriteFast(unoPins[motor.stepPin], HIGH);
+    delayMicroseconds(STEP_SPEED);
+    digitalWriteFast(unoPins[motor.stepPin], LOW);
+    delayMicroseconds(STEP_SPEED);
+  }
 }
 
-// goto the begin of current line
+/**
+ * Move along x axis by one drop width
+ */
+void stepDropX() {
+  step(motorX, stepsPerDrop);
+  posX += stepsPerDrop;
+}
+
+/**
+ * Return to initial location on x axis
+ */
 void gotoBeginLine() {
-  // TODO
+  step(motorX, -posX);
+  posX = 0;
 }
 
-// move stepper y 1 line above (dot height) * nozzleCount
+/**
+ * Move printhead to next line (printhead moving in positive Y)
+ * Stepper Y controls bed, so it needs to move in negative Y
+ */
 void gotoNextLine() {
-  // TODO
+  step(motorY, -stepsPerDrop * NOZZLE_COUNT);
 }
 
 // dispense ink based on bitmask
-// when last mask done, call step() and change cmdMode to INSTRUCTION
+// when last mask done, call stepDropX() and change cmdMode to INSTRUCTION
 void dispense(unsigned char mask) {
   if (cmdMode == MASK1) {
     for (int i = 0; i < 8; i++) {
@@ -128,7 +173,7 @@ void dispense(unsigned char mask) {
     delayMicroseconds(PULSE_DELAY_SAME_NOZZLE);
 
     cmdMode = INSTRUCTION;
-    step();
+    stepDropX();
   }
 }
 
@@ -138,6 +183,13 @@ void setup() {
     pinMode(nozzles[i], OUTPUT);
   }
 
+  // Stepper pin setup
+  pinMode(motorX.dirPin, OUTPUT);
+  pinMode(motorX.stepPin, OUTPUT);
+  pinMode(motorY.dirPin, OUTPUT);
+  pinMode(motorY.stepPin, OUTPUT);
+  
+  // Serial setup
   Serial.begin(115200);
   while (Serial.available() <= 0) {
     Serial.print('X');
