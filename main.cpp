@@ -29,6 +29,9 @@ constexpr char gotoBeginLineCmd = 'R';
 // go up to the next line
 constexpr char gotoNextLineCmd = 'N';
 
+// test nozzles
+constexpr char testNozzlesCmd = 'T';
+
 /*
  * read a byte from serial
  */
@@ -188,14 +191,38 @@ std::vector<unsigned char> parseImage(const char *imagePath) {
 }
 
 int main(int argc, char **argv) {
-  if (argc != 2) {
-    std::cerr << "usage: ./main <image_file>\n";
+  char* imagePath = nullptr;
+  bool testFlag = false;
+
+  if (argc < 2) {
+    std::cerr << "usage: " << argv[0] << " -i <image_path> | -test\n";
     return -1;
   }
 
-  const char *imagePath = argv[1];
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-i") == 0) {
+      if (i + 1 < argc) {
+        imagePath = argv[i + 1];
+        i++;
+      } else {
+        std::cerr << "error: missing image path\n";
+        return -1;
+      }
+    } else if (strcmp(argv[i], "-test") == 0) {
+      testFlag = true;
+    } else {
+      std::cerr << "error: unknown argument\n";
+      return -1;
+    }
+  }
 
-  std::vector<unsigned char> cmdBuffer = parseImage(imagePath);
+  std::vector<unsigned char> cmdBuffer;
+  if (imagePath) {
+    cmdBuffer = parseImage(imagePath);
+  } else if (testFlag) {
+    cmdBuffer = { testNozzlesCmd };
+  }
+
   if (cmdBuffer.empty()) {
     std::cerr << "failed to parse image\n";
     return -1;

@@ -15,7 +15,7 @@ make
 Replace `<image_file>` with the path to your image
 ```
 cd build
-./main <image_file>
+./main -i <image_file>
 ```
 You may need to change the permission of the serial port for it to work
 ```

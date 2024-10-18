@@ -20,15 +20,6 @@ struct StepperMotor {
   const int limitPin;
 };
 
-const StepperMotor motorX = {15, 16, 13};
-const StepperMotor motorY = {17, 18, 19};
-
-int posX = 0;
-//const int stepsPerDrop = (1 / DROPS_PER_INCH) * (1 / INCHES_PER_REV) * STEPS_PER_REV;
-const int stepsPerDrop = 21;
-
-CommandMode cmdMode = INSTRUCTION;
-
 struct PinInfo {
   volatile uint8_t* ddr;
   volatile uint8_t* pin;
@@ -36,9 +27,6 @@ struct PinInfo {
   uint8_t bit;
 };
 
-// Nozzle Number       1  2  3  4  5  6  7  8  9   10  11  12 
-// const int nozzles[] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14};
-const int nozzles[] = {14, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2};
 const PinInfo unoPins[] = {
 //                            GPIO    PIN
   {&DDRD, &PIND, &PORTD, 0}, // D0     0   Rx     
@@ -62,6 +50,18 @@ const PinInfo unoPins[] = {
   {&DDRC, &PINC, &PORTC, 4}, // C4     18   
   {&DDRC, &PINC, &PORTC, 5}, // C5     19   
 };
+
+// Initial command mode
+CommandMode cmdMode = INSTRUCTION;
+
+// Nozzle Number       1   2   3   4   5  6  7  8  9  10 11 12 
+const int nozzles[] = {14, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2};
+
+// Steppers
+const StepperMotor motorX = {15, 16, 13};
+const StepperMotor motorY = {17, 18, 19};
+const int stepsPerDrop = (1.0 / DROPS_PER_INCH) * (1.0 / INCHES_PER_REV) * STEPS_PER_REV;
+int posX = 0;
 
 /**
  * Write to a pin using direct port manipulation for low latency
@@ -104,13 +104,6 @@ void pulseTestSuccessive() {
     delayMicroseconds(PULSE_DELAY_DIFF_NOZZLE);
   }
   delayMicroseconds(PULSE_DELAY_SAME_NOZZLE);
-  for(int j = 0; j < 5; j++){
-    for(int i = 0; i< 64; i++) {
-      stepDropX();
-    }
-    gotoBeginLine();
-    gotoNextLine();
-  }
 }
 
 /** 
@@ -149,14 +142,15 @@ void gotoBeginLine() {
 }
 
 /**
- * Move printhead to next line
+ * Move printhead to next line (printhead moving in positive Y)
+ * Stepper Y controls bed, so it needs to move in negative Y
  */
 void gotoNextLine() {
   step(motorY, -stepsPerDrop * NOZZLE_COUNT);
 }
 
 // dispense ink based on bitmask
-// when last mask done, call step() and change cmdMode to INSTRUCTION
+// when last mask done, call stepDropX() and change cmdMode to INSTRUCTION
 void dispense(unsigned char mask) {
   if (cmdMode == MASK1) {
     for (int i = 0; i < 8; i++) {
@@ -189,11 +183,13 @@ void setup() {
     pinMode(nozzles[i], OUTPUT);
   }
 
+  // Stepper pin setup
   pinMode(motorX.dirPin, OUTPUT);
   pinMode(motorX.stepPin, OUTPUT);
   pinMode(motorY.dirPin, OUTPUT);
   pinMode(motorY.stepPin, OUTPUT);
   
+  // Serial setup
   Serial.begin(115200);
   while (Serial.available() <= 0) {
     Serial.print('X');
